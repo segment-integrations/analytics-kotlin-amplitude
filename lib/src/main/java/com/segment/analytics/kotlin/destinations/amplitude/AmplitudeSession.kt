@@ -1,14 +1,16 @@
-package com.segment.analytics.kotlin.destinations.plugins
+package com.segment.analytics.kotlin.destinations.amplitude
 
 import com.segment.analytics.kotlin.core.*
 import com.segment.analytics.kotlin.core.platform.Plugin
-import com.segment.analytics.kotlin.core.platform.plugins.logger.*
+import com.segment.analytics.kotlin.core.platform.VersionedPlugin
+import com.segment.analytics.kotlin.core.platform.plugins.logger.LogFilterKind
+import com.segment.analytics.kotlin.core.platform.plugins.logger.log
 import com.segment.analytics.kotlin.core.utilities.putIntegrations
 import java.util.*
 import kotlin.concurrent.schedule
 
 // A Destination plugin that adds session tracking to Amplitude cloud mode.
-class AmplitudeSession : Plugin {
+class AmplitudeSession : Plugin, VersionedPlugin {
 
     override val type: Plugin.Type = Plugin.Type.Enrichment
     override lateinit var analytics: Analytics
@@ -19,7 +21,7 @@ class AmplitudeSession : Plugin {
     private var timer: TimerTask? = null
     private val fireTime: Long = 300000
 
-    override fun update(settings: Settings, type:Plugin.UpdateType) {
+    override fun update(settings: Settings, type: Plugin.UpdateType) {
         active = settings.hasIntegrationSettings(key)
     }
 
@@ -115,5 +117,9 @@ class AmplitudeSession : Plugin {
     private fun stopTimer() {
         timer?.cancel()
         sessionID = -1
+    }
+
+    override fun version(): String {
+        return BuildConfig.VERSION_NAME
     }
 }
