@@ -1,8 +1,9 @@
-package com.segment.analytics.kotlin.destinations.plugins
+package com.segment.analytics.kotlin.destinations.amplitude
 
 import com.segment.analytics.kotlin.core.*
 import com.segment.analytics.kotlin.core.platform.Plugin
-import com.segment.analytics.kotlin.core.platform.plugins.logger.*
+import com.segment.analytics.kotlin.core.platform.plugins.logger.LogFilterKind
+import com.segment.analytics.kotlin.core.platform.plugins.logger.log
 import com.segment.analytics.kotlin.core.utilities.putIntegrations
 import java.util.*
 import kotlin.concurrent.schedule
@@ -19,7 +20,7 @@ class AmplitudeSession : Plugin {
     private var timer: TimerTask? = null
     private val fireTime: Long = 300000
 
-    override fun update(settings: Settings, type:Plugin.UpdateType) {
+    override fun update(settings: Settings, type: Plugin.UpdateType) {
         active = settings.hasIntegrationSettings(key)
     }
 
