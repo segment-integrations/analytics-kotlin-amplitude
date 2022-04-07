@@ -33,6 +33,7 @@ class AmplitudeSession : Plugin, VersionedPlugin {
                 message = "Running ${payload.type} payload through AmplitudeSession",
                 kind = LogFilterKind.DEBUG
             )
+            refreshSessionID()
             returnPayload =
                 payload.putIntegrations(key, mapOf("session_id" to sessionID)) as T?
         }
@@ -96,21 +97,25 @@ class AmplitudeSession : Plugin, VersionedPlugin {
     }
 
     private fun onBackground() {
-        stopTimer()
     }
 
     private fun onForeground() {
-        startTimer()
+        refreshSessionID()
     }
 
+    private fun refreshSessionID() {
+        if (sessionID == -1) {
+            // get a new session ID if we've been inactive for more than 5 min
+            sessionID = Calendar.getInstance().timeInMillis
+        }
+        startTimer()
+    }
+    
     private fun startTimer() {
-
-        // Set the session id
-        sessionID = Calendar.getInstance().timeInMillis
-
+        timer?.cancel()
         timer = Timer().schedule(fireTime) {
+            // invalidate the session ID at the end of the timer
             stopTimer()
-            startTimer()
         }
     }
 
