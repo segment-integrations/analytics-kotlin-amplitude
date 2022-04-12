@@ -104,7 +104,7 @@ class AmplitudeSession : Plugin, VersionedPlugin {
     }
 
     private fun refreshSessionID() {
-        if (sessionID == -1) {
+        if (sessionID == -1L) {
             // get a new session ID if we've been inactive for more than 5 min
             sessionID = Calendar.getInstance().timeInMillis
         }
