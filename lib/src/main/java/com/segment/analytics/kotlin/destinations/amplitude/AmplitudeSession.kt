@@ -10,7 +10,7 @@ import java.util.*
 import kotlin.concurrent.schedule
 
 // A Destination plugin that adds session tracking to Amplitude cloud mode.
-class AmplitudeSession : Plugin, VersionedPlugin {
+class AmplitudeSession (sessionTimeoutMs : Long = 300000) : Plugin, VersionedPlugin {
 
     override val type: Plugin.Type = Plugin.Type.Enrichment
     override lateinit var analytics: Analytics
@@ -19,7 +19,7 @@ class AmplitudeSession : Plugin, VersionedPlugin {
     private var active = false
 
     private var timer: TimerTask? = null
-    private val fireTime: Long = 300000
+    private val fireTime: Long = sessionTimeoutMs
 
     override fun update(settings: Settings, type: Plugin.UpdateType) {
         active = settings.hasIntegrationSettings(key)
