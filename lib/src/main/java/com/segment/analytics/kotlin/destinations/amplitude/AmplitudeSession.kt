@@ -3,7 +3,7 @@ package com.segment.analytics.kotlin.destinations.amplitude
 import com.segment.analytics.kotlin.core.*
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.platform.VersionedPlugin
-import com.segment.analytics.kotlin.core.platform.plugins.logger.LogFilterKind
+import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.log
 import com.segment.analytics.kotlin.core.utilities.putIntegrations
 import java.util.*
@@ -31,7 +31,7 @@ class AmplitudeSession (sessionTimeoutMs : Long = 300000) : Plugin, VersionedPlu
         payload?.let {
             analytics.log(
                 message = "Running ${payload.type} payload through AmplitudeSession",
-                kind = LogFilterKind.DEBUG
+                kind = LogKind.DEBUG
             )
             refreshSessionID()
             returnPayload =
