@@ -62,6 +62,7 @@ class AmplitudeSession (sessionTimeoutMs : Long = 300000) : Plugin, VersionedPlu
             is AliasEvent -> {
                 result = alias(result)
             }
+            else -> {}
         }
         return result
     }
