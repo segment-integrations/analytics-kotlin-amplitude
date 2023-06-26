@@ -1,43 +1,25 @@
 package com.segment.analytics.kotlin.destinations.amplitude
 
 import com.segment.analytics.kotlin.core.*
+import com.segment.analytics.kotlin.core.platform.EventPlugin
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.platform.VersionedPlugin
 import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
 import com.segment.analytics.kotlin.core.platform.plugins.logger.log
 import com.segment.analytics.kotlin.core.utilities.putIntegrations
-import java.util.*
-import kotlin.concurrent.schedule
 
 // A Destination plugin that adds session tracking to Amplitude cloud mode.
-class AmplitudeSession (sessionTimeoutMs : Long = 300000) : Plugin, VersionedPlugin {
+class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlugin, VersionedPlugin {
 
     override val type: Plugin.Type = Plugin.Type.Enrichment
     override lateinit var analytics: Analytics
-    var sessionID: Long = -1
+    var sessionID = java.lang.System.currentTimeMillis()
     private val key = "Actions Amplitude"
     private var active = false
-
-    private var timer: TimerTask? = null
-    private val fireTime: Long = sessionTimeoutMs
+    private var lastEventFiredTime = java.lang.System.currentTimeMillis()
 
     override fun update(settings: Settings, type: Plugin.UpdateType) {
         active = settings.hasIntegrationSettings(key)
-    }
-
-    // Add the session_id to the Amplitude payload for cloud mode to handle.
-    private inline fun <reified T : BaseEvent?> insertSession(payload: T?): BaseEvent? {
-        var returnPayload = payload
-        payload?.let {
-            analytics.log(
-                message = "Running ${payload.type} payload through AmplitudeSession",
-                kind = LogKind.DEBUG
-            )
-            refreshSessionID()
-            returnPayload =
-                payload.putIntegrations(key, mapOf("session_id" to sessionID)) as T?
-        }
-        return returnPayload
     }
 
     override fun execute(event: BaseEvent): BaseEvent? {
@@ -45,55 +27,23 @@ class AmplitudeSession (sessionTimeoutMs : Long = 300000) : Plugin, VersionedPlu
             return event
         }
 
-        var result: BaseEvent? = event
-        when (result) {
-            is IdentifyEvent -> {
-                result = identify(result)
-            }
-            is TrackEvent -> {
-                result = track(result)
-            }
-            is GroupEvent -> {
-                result = group(result)
-            }
-            is ScreenEvent -> {
-                result = screen(result)
-            }
-            is AliasEvent -> {
-                result = alias(result)
-            }
-            else -> {}
-        }
-        return result
+        val modified = super.execute(event)
+        analytics.log(
+            message = "Running ${event.type} payload through AmplitudeSession",
+            kind = LogKind.DEBUG
+        )
+        lastEventFiredTime = java.lang.System.currentTimeMillis()
+
+        return modified?.putIntegrations(key, mapOf("session_id" to sessionID))
     }
 
-    private fun track(payload: TrackEvent): BaseEvent? {
+    override fun track(payload: TrackEvent): BaseEvent {
         if (payload.event == "Application Backgrounded") {
             onBackground()
         } else if (payload.event == "Application Opened") {
             onForeground()
         }
-        insertSession(payload)
-        return payload
-    }
 
-    private fun identify(payload: IdentifyEvent): BaseEvent? {
-        insertSession(payload)
-        return payload
-    }
-
-    private fun screen(payload: ScreenEvent): BaseEvent? {
-        insertSession(payload)
-        return payload
-    }
-
-    private fun group(payload: GroupEvent): BaseEvent? {
-        insertSession(payload)
-        return payload
-    }
-
-    private fun alias(payload: AliasEvent): BaseEvent? {
-        insertSession(payload)
         return payload
     }
 
@@ -101,28 +51,10 @@ class AmplitudeSession (sessionTimeoutMs : Long = 300000) : Plugin, VersionedPlu
     }
 
     private fun onForeground() {
-        refreshSessionID()
-    }
-
-    private fun refreshSessionID() {
-        if (sessionID == -1L) {
-            // get a new session ID if we've been inactive for more than 5 min
-            sessionID = Calendar.getInstance().timeInMillis
+        val current = java.lang.System.currentTimeMillis()
+        if (current - lastEventFiredTime >= sessionTimeoutMs) {
+            sessionID = current
         }
-        startTimer()
-    }
-    
-    private fun startTimer() {
-        timer?.cancel()
-        timer = Timer().schedule(fireTime) {
-            // invalidate the session ID at the end of the timer
-            stopTimer()
-        }
-    }
-
-    private fun stopTimer() {
-        timer?.cancel()
-        sessionID = -1
     }
 
     override fun version(): String {
