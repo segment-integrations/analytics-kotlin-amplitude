@@ -46,7 +46,7 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
                 eventSessionId = sessionId
                 analytics.log(message = "NewSession = $eventSessionId")
             }
-            if (event.event == ampSessionEndEvent) {
+            else if (event.event == ampSessionEndEvent) {
                 analytics.log(message = "EndSession = $eventSessionId")
             }
         }
