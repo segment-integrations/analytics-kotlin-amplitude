@@ -9,12 +9,12 @@ plugins {
 val VERSION_NAME: String by project
 
 android {
-    compileSdk = 33
+    compileSdk = 34
 
     defaultConfig {
         multiDexEnabled = true
         minSdk = 16
-        targetSdk = 33
+        targetSdk = 34
 
         testInstrumentationRunner = "android.support.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("proguard-consumer-rules.pro")
@@ -29,7 +29,6 @@ android {
         }
     }
     compileOptions {
-        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
@@ -39,12 +38,10 @@ android {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.2")
-
     implementation("com.segment.analytics.kotlin:android:1.16.3")
     implementation("androidx.multidex:multidex:2.0.1")
 
-    implementation("androidx.core:core-ktx:1.8.0")
+    implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
     implementation("androidx.lifecycle:lifecycle-process:2.4.1")
