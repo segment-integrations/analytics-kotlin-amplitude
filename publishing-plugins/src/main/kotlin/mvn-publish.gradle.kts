@@ -61,7 +61,7 @@ fun getVersionName() =
 afterEvaluate {
     configure<PublishingExtension> {
         // Configure all publications
-        publications.create<MavenPublication>("test") {
+        publications.create<MavenPublication>("lib") {
             groupId = getExtraString("GROUP")
             artifactId = getExtraString("POM_ARTIFACT_ID")
             version = getVersionName()
