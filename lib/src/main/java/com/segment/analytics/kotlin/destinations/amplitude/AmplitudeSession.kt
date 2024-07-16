@@ -4,8 +4,7 @@ import com.segment.analytics.kotlin.core.*
 import com.segment.analytics.kotlin.core.platform.EventPlugin
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.platform.VersionedPlugin
-import com.segment.analytics.kotlin.core.platform.plugins.logger.LogKind
-import com.segment.analytics.kotlin.core.platform.plugins.logger.log
+import com.segment.analytics.kotlin.core.platform.plugins.logger.*
 import com.segment.analytics.kotlin.core.utilities.putIntegrations
 
 // A Destination plugin that adds session tracking to Amplitude cloud mode.
@@ -13,11 +12,18 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
 
     override val type: Plugin.Type = Plugin.Type.Enrichment
     override lateinit var analytics: Analytics
-    var sessionID = java.lang.System.currentTimeMillis()
+    private var eventSessionId = -1L
+    private var sessionId = eventSessionId
     private val key = "Actions Amplitude"
+    private val ampSessionEndEvent = "session_end"
+    private val ampSessionStartEvent = "session_start"
     private var active = false
     private var lastEventFiredTime = java.lang.System.currentTimeMillis()
 
+    override fun setup(analytics: Analytics) {
+        super.setup(analytics)
+        startNewSessionIfNecessary()
+    }
     override fun update(settings: Settings, type: Plugin.UpdateType) {
         active = settings.hasIntegrationSettings(key)
     }
@@ -27,14 +33,25 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
             return event
         }
 
+        startNewSessionIfNecessary()
+
         val modified = super.execute(event)
         analytics.log(
-            message = "Running ${event.type} payload through AmplitudeSession",
-            kind = LogKind.DEBUG
+            message = "Running ${event.type} payload through AmplitudeSession"
         )
-        lastEventFiredTime = java.lang.System.currentTimeMillis()
 
-        return modified?.putIntegrations(key, mapOf("session_id" to sessionID))
+        if (event is TrackEvent) {
+            if(event.event == ampSessionStartEvent) {
+                // Update session ID for all events after this in the queue
+                eventSessionId = sessionId
+                analytics.log(message = "NewSession = $eventSessionId")
+            }
+            else if (event.event == ampSessionEndEvent) {
+                analytics.log(message = "EndSession = $eventSessionId")
+            }
+        }
+
+        return modified?.putIntegrations(key, mapOf("session_id" to eventSessionId))
     }
 
     override fun track(payload: TrackEvent): BaseEvent {
@@ -51,10 +68,32 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
     }
 
     private fun onForeground() {
+        startNewSessionIfNecessary()
+    }
+
+    private fun startNewSession() {
+        analytics.track(ampSessionStartEvent)
+    }
+
+    private fun endSession() {
+        analytics.track(ampSessionEndEvent)
+    }
+
+    private fun startNewSessionIfNecessary() {
         val current = java.lang.System.currentTimeMillis()
-        if (current - lastEventFiredTime >= sessionTimeoutMs) {
-            sessionID = current
+        // Make sure the first event has a valid ID and we send a session start.
+        // Subsequent events should have session IDs updated after the session track event is sent
+        if(eventSessionId == -1L || sessionId == -1L) {
+            sessionId = current
+            eventSessionId = current
+            startNewSession()
+        } else if (current - lastEventFiredTime >= sessionTimeoutMs) {
+            sessionId = current
+
+            endSession()
+            startNewSession()
         }
+        lastEventFiredTime = current
     }
 
     override fun version(): String {
