@@ -67,7 +67,7 @@ afterEvaluate {
             version = getVersionName()
 
             artifact("$buildDir/outputs/aar/${project.getName()}-release.aar")
-            artifact(tasks.named<Jar>("withJavadocJar"))
+//            artifact(tasks.named<Jar>("withJavadocJar"))
             artifact(tasks.named<Jar>("withSourcesJar"))
 
             // Provide artifacts information requited by Maven Central

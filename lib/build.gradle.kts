@@ -85,28 +85,28 @@ tasks.withType<Test> {
 tasks {
     val sourceFiles = android.sourceSets.getByName("main").java.srcDirs
 
-    register<Javadoc>("withJavadoc") {
-        isFailOnError = false
+//    register<Javadoc>("withJavadoc") {
+//        isFailOnError = false
+//
+//        setSource(sourceFiles)
+//
+//        // add Android runtime classpath
+//        android.bootClasspath.forEach { classpath += project.fileTree(it) }
+//
+//        // add classpath for all dependencies
+//        android.libraryVariants.forEach { variant ->
+//            variant.javaCompileProvider.get().classpath.files.forEach { file ->
+//                classpath += project.fileTree(file)
+//            }
+//        }
+//    }
 
-        setSource(sourceFiles)
-
-        // add Android runtime classpath
-        android.bootClasspath.forEach { classpath += project.fileTree(it) }
-
-        // add classpath for all dependencies
-        android.libraryVariants.forEach { variant ->
-            variant.javaCompileProvider.get().classpath.files.forEach { file ->
-                classpath += project.fileTree(file)
-            }
-        }
-    }
-
-    register<Jar>("withJavadocJar") {
-        archiveClassifier.set("javadoc")
-        dependsOn(named("withJavadoc"))
-        val destination = named<Javadoc>("withJavadoc").get().destinationDir
-        from(destination)
-    }
+//    register<Jar>("withJavadocJar") {
+//        archiveClassifier.set("javadoc")
+//        dependsOn(named("withJavadoc"))
+//        val destination = named<Javadoc>("withJavadoc").get().destinationDir
+//        from(destination)
+//    }
 
     register<Jar>("withSourcesJar") {
         archiveClassifier.set("sources")
