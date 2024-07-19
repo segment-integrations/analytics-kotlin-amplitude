@@ -6,6 +6,8 @@ import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.platform.VersionedPlugin
 import com.segment.analytics.kotlin.core.platform.plugins.logger.*
 import com.segment.analytics.kotlin.core.utilities.putIntegrations
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 // A Destination plugin that adds session tracking to Amplitude cloud mode.
 class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlugin, VersionedPlugin {
@@ -19,6 +21,7 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
     private val ampSessionStartEvent = "session_start"
     private var active = false
     private var lastEventFiredTime = java.lang.System.currentTimeMillis()
+    private var sessionUpdateLock = ReentrantLock()
 
     override fun setup(analytics: Analytics) {
         super.setup(analytics)
@@ -80,20 +83,23 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
     }
 
     private fun startNewSessionIfNecessary() {
-        val current = java.lang.System.currentTimeMillis()
-        // Make sure the first event has a valid ID and we send a session start.
-        // Subsequent events should have session IDs updated after the session track event is sent
-        if(eventSessionId == -1L || sessionId == -1L) {
-            sessionId = current
-            eventSessionId = current
-            startNewSession()
-        } else if (current - lastEventFiredTime >= sessionTimeoutMs) {
-            sessionId = current
+        sessionUpdateLock.withLock {
+            val current = java.lang.System.currentTimeMillis()
+            // Make sure the first event has a valid ID and we send a session start.
+            // Subsequent events should have session IDs updated after the session track event is sent
+            if (eventSessionId == -1L || sessionId == -1L) {
+                sessionId = current
+                eventSessionId = current
+                lastEventFiredTime = current
+                startNewSession()
+            } else if (current - lastEventFiredTime >= sessionTimeoutMs) {
+                sessionId = current
+                lastEventFiredTime = current
 
-            endSession()
-            startNewSession()
+                endSession()
+                startNewSession()
+            }
         }
-        lastEventFiredTime = current
     }
 
     override fun version(): String {
