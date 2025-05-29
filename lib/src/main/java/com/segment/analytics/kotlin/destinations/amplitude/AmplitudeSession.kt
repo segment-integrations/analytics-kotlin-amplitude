@@ -1,60 +1,121 @@
 package com.segment.analytics.kotlin.destinations.amplitude
 
+import android.content.Context
+import android.content.SharedPreferences
 import com.segment.analytics.kotlin.core.*
 import com.segment.analytics.kotlin.core.platform.EventPlugin
 import com.segment.analytics.kotlin.core.platform.Plugin
 import com.segment.analytics.kotlin.core.platform.VersionedPlugin
 import com.segment.analytics.kotlin.core.platform.plugins.logger.*
 import com.segment.analytics.kotlin.core.utilities.putIntegrations
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import com.segment.analytics.kotlin.core.utilities.updateJsonObject
+import com.segment.analytics.kotlin.core.utilities.*
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import androidx.core.content.edit
 
 // A Destination plugin that adds session tracking to Amplitude cloud mode.
 class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlugin, VersionedPlugin {
 
+    companion object {
+        const val LAST_EVENT_ID = "last_event_id"
+        const val PREVIOUS_SESSION_ID = "previous_session_id"
+        const val LAST_EVENT_TIME = "last_event_time"
+
+        const val AMP_PREFIX = "[Amplitude] "
+        const val AMP_SESSION_END_EVENT = "session_end"
+        const val AMP_SESSION_START_EVENT = "session_start"
+    }
+
     override val type: Plugin.Type = Plugin.Type.Enrichment
     override lateinit var analytics: Analytics
-    private var eventSessionId = -1L
-    private var sessionId = eventSessionId
     private val key = "Actions Amplitude"
-    private val ampSessionEndEvent = "session_end"
-    private val ampSessionStartEvent = "session_start"
-    private var active = false
-    private var lastEventFiredTime = java.lang.System.currentTimeMillis()
-    private var sessionUpdateLock = ReentrantLock()
+
+
+    private val active = AtomicBoolean(false)
+    private var prefs: SharedPreferences? = null
+
+    private val _sessionId = AtomicLong(-1L)
+    private var sessionId
+        get() = _sessionId.get()
+        set(value) {
+            _sessionId.set(value)
+            prefs?.edit(commit = true) { putLong(PREVIOUS_SESSION_ID, value) }
+        }
+    private val _lastEventTime = AtomicLong(-1L)
+    private var lastEventTime
+        get() = _lastEventTime.get()
+        set(value) {
+            _lastEventTime.set(value)
+            prefs?.edit(commit = true) { putLong(LAST_EVENT_TIME, value) }
+        }
 
     override fun setup(analytics: Analytics) {
         super.setup(analytics)
-        startNewSessionIfNecessary()
+
+        var context: Context? = null
+        if (analytics.configuration.application is Context){
+            context = analytics.configuration.application as Context
+        }
+        context?.let {
+            prefs = context.getSharedPreferences("analytics-android-${analytics.configuration.writeKey}", Context.MODE_PRIVATE)
+            prefs?.let {
+                _sessionId.set(it.getLong(PREVIOUS_SESSION_ID, -1))
+                _lastEventTime.set(it.getLong(LAST_EVENT_TIME, -1))
+            }
+        }
+
+        if (sessionId == -1L) {
+            startNewSession()
+        }
+        else {
+            startNewSessionIfNecessary()
+        }
     }
+
     override fun update(settings: Settings, type: Plugin.UpdateType) {
-        active = settings.hasIntegrationSettings(key)
+        if (type != Plugin.UpdateType.Initial) return
+
+        active.set(settings.hasIntegrationSettings(key))
     }
 
     override fun execute(event: BaseEvent): BaseEvent? {
-        if (!active) { // If amplitude destination is disabled, no need to do this enrichment
+        if (!active.get()) { // If amplitude destination is disabled, no need to do this enrichment
             return event
         }
 
         startNewSessionIfNecessary()
 
-        val modified = super.execute(event)
         analytics.log(
             message = "Running ${event.type} payload through AmplitudeSession"
         )
 
-        if (event is TrackEvent) {
-            if(event.event == ampSessionStartEvent) {
-                // Update session ID for all events after this in the queue
-                eventSessionId = sessionId
-                analytics.log(message = "NewSession = $eventSessionId")
+        var modified = super.execute(event)
+        if (modified is ScreenEvent) {
+            val screenName = modified.name
+            modified.properties = updateJsonObject(modified.properties) {
+                // amp needs screen name in the properties for screen event
+                it["name"] = screenName
             }
-            else if (event.event == ampSessionEndEvent) {
-                analytics.log(message = "EndSession = $eventSessionId")
+        }
+        else if (modified is TrackEvent) {
+            if(modified.event == AMP_SESSION_START_EVENT) {
+                modified = modified.disableCloudIntegrations(exceptKeys = listOf(key))
+                analytics.log(message = "NewSession = $sessionId")
+            }
+            else if (modified.event == AMP_SESSION_END_EVENT) {
+                modified = modified.disableCloudIntegrations(exceptKeys = listOf(key))
+                analytics.log(message = "EndSession = $sessionId")
+            }
+            else if (modified.event.contains(AMP_PREFIX)) {
+                modified = modified.disableCloudIntegrations(exceptKeys = listOf(key))
+                modified = modified.putIntegrations(key, mapOf("session_id" to sessionId))
             }
         }
 
-        return modified?.putIntegrations(key, mapOf("session_id" to eventSessionId))
+        // renew the session if there are activities
+        lastEventTime = java.lang.System.currentTimeMillis()
+        return modified
     }
 
     override fun track(payload: TrackEvent): BaseEvent {
@@ -68,6 +129,7 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
     }
 
     private fun onBackground() {
+        lastEventTime = java.lang.System.currentTimeMillis()
     }
 
     private fun onForeground() {
@@ -75,31 +137,34 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
     }
 
     private fun startNewSession() {
-        analytics.track(ampSessionStartEvent)
+        sessionId = java.lang.System.currentTimeMillis()
+
+        // need to snapshot the current sessionId
+        // because when the enrichment closure is applied the sessionId might have changed
+        val copy = sessionId
+        analytics.track(AMP_SESSION_START_EVENT) { event ->
+            event?.putIntegrations(key, mapOf("session_id" to copy))
+        }
     }
 
     private fun endSession() {
-        analytics.track(ampSessionEndEvent)
+        // need to snapshot the current sessionId
+        // because when the enrichment closure is applied the sessionId might have changed
+        val copy = sessionId
+        analytics.track(AMP_SESSION_END_EVENT) { event ->
+            event?.putIntegrations(key, mapOf("session_id" to copy))
+        }
     }
 
     private fun startNewSessionIfNecessary() {
-        sessionUpdateLock.withLock {
-            val current = java.lang.System.currentTimeMillis()
-            // Make sure the first event has a valid ID and we send a session start.
-            // Subsequent events should have session IDs updated after the session track event is sent
-            if (eventSessionId == -1L || sessionId == -1L) {
-                sessionId = current
-                eventSessionId = current
-                lastEventFiredTime = current
-                startNewSession()
-            } else if (current - lastEventFiredTime >= sessionTimeoutMs) {
-                sessionId = current
-                lastEventFiredTime = current
+        val current = java.lang.System.currentTimeMillis()
+        val withinSessionLimit = (current - lastEventTime < sessionTimeoutMs)
+        if (sessionId >= 0 && withinSessionLimit) return
 
-                endSession()
-                startNewSession()
-            }
-        }
+        // we'll consider this our new lastEventTime
+        lastEventTime = current
+        endSession()
+        startNewSession()
     }
 
     override fun version(): String {
