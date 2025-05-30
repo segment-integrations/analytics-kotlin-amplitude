@@ -91,6 +91,8 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
         )
 
         var modified = super.execute(event)
+        modified = insertSession(modified)
+
         if (modified is ScreenEvent) {
             val screenName = modified.name
             modified.properties = updateJsonObject(modified.properties) {
@@ -109,7 +111,6 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
             }
             else if (modified.event.contains(AMP_PREFIX)) {
                 modified = modified.disableCloudIntegrations(exceptKeys = listOf(key))
-                modified = modified.putIntegrations(key, mapOf("session_id" to sessionId))
             }
         }
 
@@ -126,6 +127,15 @@ class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlu
         }
 
         return payload
+    }
+
+    private fun insertSession(event: BaseEvent?): BaseEvent? {
+        // for session start or session end, session id is already attached, so skip it
+        if (event?.integrations?.get(key)?.safeJsonObject?.containsKey("session_id") == true) {
+            return event
+        }
+
+        return event?.putIntegrations(key, mapOf("session_id" to sessionId))
     }
 
     private fun onBackground() {
