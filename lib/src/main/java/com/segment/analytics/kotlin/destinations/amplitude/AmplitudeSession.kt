@@ -18,7 +18,6 @@ import androidx.core.content.edit
 class AmplitudeSession (private val sessionTimeoutMs : Long = 300000) : EventPlugin, VersionedPlugin {
 
     companion object {
-        const val LAST_EVENT_ID = "last_event_id"
         const val PREVIOUS_SESSION_ID = "previous_session_id"
         const val LAST_EVENT_TIME = "last_event_time"
 
