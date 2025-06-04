@@ -38,7 +38,7 @@ android {
 }
 
 dependencies {
-    implementation("com.segment.analytics.kotlin:android:1.16.3")
+    implementation("com.segment.analytics.kotlin:android:1.19.2")
     implementation("androidx.multidex:multidex:2.0.1")
 
     implementation("androidx.core:core-ktx:1.13.1")
